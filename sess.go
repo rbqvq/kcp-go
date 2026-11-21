@@ -65,6 +65,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/xtaci/kcp-go/v5/internal/cmsg"
+	"github.com/xtaci/kcp-go/v5/internal/lib/net/netio/batch"
 	libnetip "github.com/xtaci/kcp-go/v5/internal/lib/net/netip"
 	libsync "github.com/xtaci/kcp-go/v5/internal/lib/sync"
 	"golang.org/x/net/ipv4"
@@ -140,11 +141,12 @@ type OOBCallBackType func([]byte)
 type (
 	// UDPSession is a KCP session over UDP.
 	UDPSession struct {
-		conn    net.PacketConn // the underlying packet connection
-		ownConn bool           // true if we created conn internally, false if provided by caller
-		kcp     *KCP           // KCP ARQ protocol
-		l       *Listener      // pointing to the Listener object if it's been accepted by a Listener
-		block   BlockCrypt     // block encryption object
+		conn      net.PacketConn // the underlying packet connection
+		batchConn batch.Conn     // the underlying batch connection, if available
+		ownConn   bool           // true if we created conn internally, false if provided by caller
+		kcp       *KCP           // KCP ARQ protocol
+		l         *Listener      // pointing to the Listener object if it's been accepted by a Listener
+		block     BlockCrypt     // block encryption object
 
 		updateFn func() // s.update, made once so rescheduling does not allocate
 
@@ -187,9 +189,6 @@ type (
 		// the loop when a KCP operation requires another update. The idle check and
 		// Store are performed under mutex; resumeUpdate() uses an atomic compare-and-swap.
 		updaterSuspended atomic.Bool
-
-		// platform-dependent optimizations
-		platform platform
 
 		// ratelimit buckets
 		bucket atomic.Pointer[ratelimit.Bucket]
@@ -241,6 +240,15 @@ func (s *UDPSession) output(buf []byte, size int) {
 	defaultBufferPool.Put(bts)
 }
 
+func (s *UDPSession) initBatchConn() {
+	batchConn, err := batch.NewPacketConn(s.conn)
+	if err != nil {
+		return
+	}
+
+	s.batchConn = batchConn
+}
+
 // newUDPSession creates a new UDP session for a client or server.
 func newUDPSession(conv uint32, dataShards, parityShards int, l *Listener, conn net.PacketConn, ownConn bool, laddr libnetip.AddrInterface, localAddr, remoteAddr net.Addr, block BlockCrypt) *UDPSession {
 	sess := new(UDPSession)
@@ -262,7 +270,7 @@ func newUDPSession(conv uint32, dataShards, parityShards int, l *Listener, conn 
 	sess.l = l
 	sess.block = block
 	sess.recvbuf = make([]byte, maxPacketSize)
-	sess.initPlatform()
+	sess.initBatchConn()
 
 	sess.readDeadline = deadline.New()
 	sess.writeDeadline = deadline.New()

@@ -27,7 +27,6 @@ import (
 	"net"
 
 	"github.com/pkg/errors"
-	"github.com/xtaci/kcp-go/v5/internal/cmsg"
 	libnetip "github.com/xtaci/kcp-go/v5/internal/lib/net/netip"
 )
 
@@ -110,99 +109,36 @@ func isSameUDPAddr(a, b *net.UDPAddr) bool {
 	return true
 }
 
-// readLoopGeneric is the standard procedure for reading from a connection
-func (s *UDPSession) readLoopGeneric() {
-	buf := make([]byte, maxPacketSize)
-
-	for {
-		n, remoteAddr, err := s.conn.ReadFrom(buf)
-		if err != nil {
-			s.notifyReadError(errors.WithStack(err))
-			return
-		}
-
-		if s.isClosed() {
-			return
-		}
-
-		if !isValidAddr(remoteAddr) {
-			continue
-		}
-
-		// Ensure the packet comes from the same source.
-		if !isSameAddr(remoteAddr, s.remoteAddr) {
-			DefaultSnmp.increaseInErrs()
-			continue
-		}
-
-		s.dispatch(buf[:n])
+func (s *UDPSession) readLoop() {
+	if s.readLoopBatch() {
+		return
 	}
+
+	s.readLoopGeneric()
 }
 
-// readLoopGeneric is the standard procedure for reading and accepting connections on a listener
-func (l *Listener) readLoopGeneric() {
-	buf := make([]byte, maxPacketSize)
-	for {
-		n, remoteAddr, err := l.conn.ReadFrom(buf)
-		if err != nil {
-			l.notifyReadError(errors.WithStack(err))
-			return
-		}
-
-		if !isValidAddr(remoteAddr) {
-			continue
-		}
-
-		l.dispatch(buf[:n], libnetip.AddrInterface{}, nil, remoteAddr)
+func (l *Listener) readLoop() {
+	if l.readLoopBatch() {
+		return
 	}
+
+	l.readLoopGeneric()
 }
 
-// readLoopUDPGeneric is the standard procedure for reading and accepting connections on a listener
-func (l *Listener) readLoopUDPGeneric() {
-	udpConn := l.conn.(udpConn)
-
-	buf := make([]byte, maxPacketSize)
-	for {
-		n, _, _, remoteAddr, err := udpConn.ReadMsgUDP(buf, nil)
-		if err != nil {
-			l.notifyReadError(errors.WithStack(err))
-			return
-		}
-
-		if remoteAddr == nil {
-			continue
-		}
-
-		l.dispatch(buf[:n], libnetip.AddrInterface{}, nil, remoteAddr)
+func (l *Listener) readLoopUDP() {
+	if l.readLoopBatchUDP() {
+		return
 	}
+
+	l.readLoopGenericUDP()
 }
 
-// readLoopUnspecifiedGeneric receives packets and their local destination addresses.
-func (l *Listener) readLoopUnspecifiedGeneric() {
-	udpConn := l.conn.(udpConn)
-
-	buf := make([]byte, maxPacketSize)
-	oob := make([]byte, cmsgPacketSize)
-	for {
-		n, nn, _, remoteAddr, err := udpConn.ReadMsgUDP(buf, oob)
-		if err != nil {
-			l.notifyReadError(errors.WithStack(err))
-			return
-		}
-
-		// The destination is required to select the reply source and session key.
-		laddr, err := cmsg.ParseControlMessage(oob[:nn])
-		if err != nil {
-			continue
-		}
-
-		if !isUnicast(laddr.Addr()) {
-			continue
-		}
-
-		localAddr := cmsg.ResolveUDPAddr(laddr, l.localPort)
-		l.dispatch(buf[:n], laddr, localAddr, remoteAddr)
+func (l *Listener) readLoopUnspecified() {
+	if l.readLoopBatchUnspecified() {
+		return
 	}
+
+	l.readLoopGenericUnspecified()
 }
 
 // PacketPusher is a net.PacketConn that can hand each received packet to a

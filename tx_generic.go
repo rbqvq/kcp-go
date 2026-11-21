@@ -20,14 +20,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-//go:build !linux
-
 package kcp
 
 import (
+	"net"
+
+	"github.com/pkg/errors"
 	"golang.org/x/net/ipv4"
 )
 
-func (s *UDPSession) tx(txqueue []ipv4.Message) {
-	s.defaultTx(txqueue)
+func (s *UDPSession) txGenericUDP(txqueue []ipv4.Message) bool {
+	if s.cmsg == nil {
+		return false
+	}
+
+	nbytes := 0
+	npkts := 0
+	for k := range txqueue {
+		n, _, err := s.conn.(udpConn).WriteMsgUDP(txqueue[k].Buffers[0], txqueue[k].OOB, txqueue[k].Addr.(*net.UDPAddr))
+		if err != nil {
+			s.notifyWriteError(errors.WithStack(err))
+			break
+		}
+		nbytes += n
+		npkts++
+	}
+
+	DefaultSnmp.addOutPkts(npkts)
+	DefaultSnmp.addOutBytes(nbytes)
+	return true
+}
+
+func (s *UDPSession) txGeneric(txqueue []ipv4.Message) {
+	nbytes := 0
+	npkts := 0
+	for k := range txqueue {
+		n, err := s.conn.WriteTo(txqueue[k].Buffers[0], txqueue[k].Addr)
+		if err != nil {
+			s.notifyWriteError(errors.WithStack(err))
+			break
+		}
+
+		nbytes += n
+		npkts++
+	}
+	DefaultSnmp.addOutPkts(npkts)
+	DefaultSnmp.addOutBytes(nbytes)
 }
