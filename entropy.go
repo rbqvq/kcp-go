@@ -39,10 +39,10 @@ const reseedInterval = 1 << 24 // reseed after ~16M reads to limit key exposure
 var (
 	hasAESAsmAMD64 = cpu.X86.HasAES && cpu.X86.HasSSE41 && cpu.X86.HasSSSE3
 	hasAESAsmARM64 = cpu.ARM64.HasAES
-	hasAESAsmS390X = cpu.S390X.HasAES
+	hasAESAsmS390X = cpu.S390X.HasAES && cpu.S390X.HasAESCBC
 	hasAESAsmPPC64 = runtime.GOARCH == "ppc64" || runtime.GOARCH == "ppc64le"
 
-	hasAESHardwareSupport = hasAESAsmAMD64 || hasAESAsmARM64 || hasAESAsmS390X || hasAESAsmPPC64
+	hasAESHardwareSupport = hasAESAsmAMD64 || hasAESAsmARM64 || hasAESAsmS390X || hasAESAsmPPC64 || hasAESAsmLOONG64 || hasAESAsmRISCV64
 
 	entropy io.Reader = NewEntropy()
 )
