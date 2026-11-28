@@ -81,11 +81,6 @@ func isSameAddr(a, b net.Addr) bool {
 	}
 
 compareCustom:
-	// fast path for same value/pointer.
-	if a == b {
-		return true
-	}
-
 	return a.String() == b.String()
 }
 

@@ -52,6 +52,21 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
+type sliceAddr []byte
+
+func (a sliceAddr) Network() string { return "test" }
+func (a sliceAddr) String() string  { return string(a) }
+
+func TestIsSameAddrUncomparable(t *testing.T) {
+	a := sliceAddr("peer")
+	if !isSameAddr(a, sliceAddr("peer")) {
+		t.Fatal("equal custom addresses did not match")
+	}
+	if isSameAddr(a, sliceAddr("other")) {
+		t.Fatal("different custom addresses matched")
+	}
+}
+
 func TestNewConnRejectsNilUDPAddr(t *testing.T) {
 	var addr *net.UDPAddr
 	for _, tt := range []struct {
