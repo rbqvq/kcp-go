@@ -1773,7 +1773,7 @@ func ListenWithOptions(laddr string, block BlockCrypt, dataShards, parityShards 
 }
 
 // ServeConn serves the KCP protocol over a single packet connection.
-// Packets with a source address other than a non-nil *net.UDPAddr are ignored.
+// Packets with a nil source address or a nil *net.UDPAddr are ignored.
 func ServeConn(block BlockCrypt, dataShards, parityShards int, conn net.PacketConn) (*Listener, error) {
 	return serveConn(block, dataShards, parityShards, conn, false)
 }

@@ -215,8 +215,8 @@ func (l *Listener) readLoopUnspecifiedGeneric() {
 // conn. fn may modify b but must not keep it after returning. A non-nil err
 // ends reads. Closing a client session or Listener sets a nil fn, which must
 // remove the receiver. Closing a Listener also closes its accepted sessions.
-// When err is nil, raddr must be a non-nil *net.UDPAddr; packets with nil or
-// non-UDP source addresses are ignored.
+// When err is nil, raddr must be a non-nil net.Addr. Packets with a nil
+// source address or a nil *net.UDPAddr are ignored.
 //
 // SetPacketReceiver is called with internal locks held. Implementations must
 // not call back into kcp from inside SetPacketReceiver — no calls into the
@@ -236,7 +236,7 @@ func (s *UDPSession) pushedPacket(b []byte, remoteAddr net.Addr, err error) {
 		return
 	}
 
-	if remoteAddr == nil {
+	if !isValidAddr(remoteAddr) {
 		return
 	}
 
@@ -256,7 +256,7 @@ func (l *Listener) pushedPacket(b []byte, remoteAddr net.Addr, err error) {
 		return
 	}
 
-	if remoteAddr == nil {
+	if !isValidAddr(remoteAddr) {
 		return
 	}
 

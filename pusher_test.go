@@ -88,7 +88,15 @@ func TestPacketPusherRejectsNilUDPAddr(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	l.pushedPacket(make([]byte, IKCP_OVERHEAD), addr, nil)
+	pkt := make([]byte, IKCP_OVERHEAD)
+	pkt[0] = 1
+	pkt[4] = IKCP_CMD_PUSH
+	for _, remote := range []net.Addr{nil, addr} {
+		l.pushedPacket(pkt, remote, nil)
+		if n := l.sessions.Size(); n != 0 {
+			t.Fatalf("nil source address registered %d sessions", n)
+		}
+	}
 }
 
 func TestPacketPusherEcho(t *testing.T) {
