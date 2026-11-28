@@ -478,7 +478,7 @@ func TestWriteWithDeadlineDoesNotAllocate(t *testing.T) {
 	}
 	cli.SetWriteDeadline(time.Time{})
 	without := testing.AllocsPerRun(100, write)
-	cli.SetWriteDeadline(time.Now().Add(time.Minute))
+	cli.SetWriteDeadline(time.Now().Add(time.Hour))
 	with := testing.AllocsPerRun(100, write)
 	if with > without {
 		t.Fatalf("Write made %v allocations with a deadline and %v without", with, without)
